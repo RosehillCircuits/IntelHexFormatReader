@@ -10,6 +10,7 @@ namespace IntelHexFormatReader
     {
         private IEnumerable<string> hexRecordLines;
         private int memorySize;
+        private uint startingAddress;
 
         #region Constructors
 
@@ -24,16 +25,29 @@ namespace IntelHexFormatReader
         {
             Initialize(hexFileContents, memorySize);
         }
+        
+        public HexFileReader(string fileName, int memorySize, uint startAddress)
+        {
+            if (!File.Exists(fileName))
+                throw new ArgumentException(string.Format("File {0} does not exist!", fileName));
+            Initialize(File.ReadLines(fileName), memorySize, startAddress);
+        }
+
+        public HexFileReader(IEnumerable<string> hexFileContents, int memorySize, uint startAddress)
+        {
+            Initialize(hexFileContents, memorySize, startAddress);
+        }
 
         #endregion
 
-        private void Initialize(IEnumerable<string> lines, int memSize)
+        private void Initialize(IEnumerable<string> lines, int memSize, uint startAddress = 0)
         {
             var fileContents = lines as IList<string> ?? lines.ToList();
             if (!fileContents.Any()) throw new ArgumentException("Hex file contents can not be empty!");
             if (memSize <= 0) throw new ArgumentException("Memory size must be greater than zero!");
             hexRecordLines = fileContents;
             memorySize = memSize;
+            startingAddress = startAddress > 0 ? startAddress : 0;
         }
 
         /// <summary>
@@ -42,13 +56,14 @@ namespace IntelHexFormatReader
         /// <returns>A MemoryBlock representation of the HEX file.</returns>
         public MemoryBlock Parse()
         {
-            return ReadHexFile(hexRecordLines, memorySize);
+            return ReadHexFile(hexRecordLines, memorySize, startingAddress);
         }
 
-        private static MemoryBlock ReadHexFile(IEnumerable<string> hexRecordLines, int memorySize)
+        private static MemoryBlock ReadHexFile(IEnumerable<string> hexRecordLines, int memorySize, uint startAddress=0)
         {
-            var result = new MemoryBlock(memorySize);
+            var result = new MemoryBlock(memorySize, 0xFF, startAddress);
 
+            // Now we can set the baseAddress to account for memory systems for which 0x0-baseAddress is useless.
             var baseAddress = 0;
             var encounteredEndOfFile = false;
             foreach (var hexRecordLine in hexRecordLines)
@@ -61,12 +76,13 @@ namespace IntelHexFormatReader
                             var nextAddress = hexRecord.Address + baseAddress;
                             for (var i = 0; i < hexRecord.ByteCount; i++)
                             {
-                                if (nextAddress + i > memorySize)
+                                // Check the address for validity within the memory space.
+                                if (((nextAddress + i)-startAddress) > memorySize)
                                     throw new IOException(
                                         string.Format("Trying to write to position {0} outside of memory boundaries ({1})!",
                                             nextAddress + i, memorySize));
 
-                                var cell = result.Cells[nextAddress + i];
+                                var cell = result.Cells[(nextAddress + i - startAddress)];
                                 cell.Value = hexRecord.Bytes[i];
                                 cell.Modified = true;
                             }

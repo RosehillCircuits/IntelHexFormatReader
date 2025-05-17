@@ -5,6 +5,15 @@
     /// </summary>
     public class MemoryBlock
     {
+        /// <summary>
+        /// Memory offset for microcontrollers
+        /// with memory that doesn't start at 0x00000000.
+        /// This should save memory from having to populate
+        /// vast ranges of unused data.
+        /// </summary>
+        
+        public uint StartAddress { get; set; }
+        
         // CS & IP registers for 80x86 systems.
 
         /// <summary>
@@ -49,10 +58,12 @@
         /// <summary>
         /// Construct a new MemoryBlock.
         /// </summary>
-        /// <param name="memorySize">The size of the MemoryBlock to instantiate.</param>
+        /// <param name="memorySize">The size of the MemoryBlock to instantiate in bytes.</param>
         /// <param name="fillValue">Default cell initialization / fill value.</param>
-        public MemoryBlock(int memorySize, byte fillValue = 0xff)
+        /// <param name="baseAddress">Start of memory for this system.</param>
+        public MemoryBlock(int memorySize, byte fillValue = 0xff, uint baseAddress = 0)
         {
+            StartAddress = baseAddress;
             Cells = new MemoryCell[memorySize];
             for (var i = 0; i < memorySize; i++)
                 Cells[i] = new MemoryCell(i) { Value = fillValue };
